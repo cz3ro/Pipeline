@@ -1,0 +1,28 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  version : python3.9\n
+  
+  Application for datalake deployed using AWS SAM
+
+Resources:
+  datalakeConvertToParquet:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      FunctionName: datalakeConvertToParquet
+      Timeout: 300
+      MemorySize: 1024
+      Architectures:
+        - x86_64
+      Policies:
+        - S3FullAccessPolicy:
+            BucketName: "*"
+        - SNSPublishMessagePolicy:
+            TopicName: "*"
+        - LambdaInvokePolicy:
+            FunctionName: "*"
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: ./datalakeConvertToParquet
+      DockerTag: python3.9-v1
