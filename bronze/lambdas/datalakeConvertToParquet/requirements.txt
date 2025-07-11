@@ -1,0 +1,9 @@
+boto3==1.26.157
+python-decouple==3.8
+pytest==7.1.2
+pandas==2.0.2
+openpyxl==3.0.10
+requests==2.31.0
+pyarrow==13.0.0
+numpy==1.26.4
+xlrd==2.0.1

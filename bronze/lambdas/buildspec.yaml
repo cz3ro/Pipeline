@@ -1,0 +1,26 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.9
+    commands:
+      - nohup /usr/local/bin/dockerd --host=unix:///var/run/docker.sock &
+      - timeout 15 sh -c "until docker info; do echo .; sleep 1; done"
+  pre_build:
+    commands:
+      - echo installing AWS SAM
+      - pip3 uninstall aws-sam-cli -y
+      - pip3 install aws-sam-cli
+      - sam --version
+  build:
+    commands:
+      - set -e
+      - echo "Building with AWS SAM"
+      - sam --version
+      - sam build --use-container --debug --parallel
+
+  post_build:
+    commands:
+      - echo "Deploying the stack"
+      - sam deploy --stack-name datapipeline --resolve-image-repos --resolve-s3 --force-upload --no-fail-on-empty-changeset --no-confirm-changeset
