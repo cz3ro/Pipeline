@@ -9,9 +9,6 @@ import pandas as pd
 from decouple import config
 from datetime import datetime
 from io import BytesIO, StringIO
-from envision_logic import mapping_columns
-from schema_monitoring import SchemaMonitoring
-from plf_files_logic import PLF_DATA_PROCESSING, NegotiatedBasketProcessor, GenericBasketProcessor
 
 # ============================================= Global Configurations ============================================= #
 logger = logging.getLogger()
@@ -161,18 +158,18 @@ def dynamic_logic(bucket_name, key, logPrefix):
     fileExtension = filename.split(".")[-1]
     fileExtension = "." + fileExtension
     filename = (key.split("/")[3]).split("=")[-1]
-    if (fileExtension == ".csv"):
-        # -------------------------------------- code for advisor SFTP fundBasketId -------------------------------------- #
-        if filename.lower() == "advisor":
-            basket_processor = None
-            if 'basket_type=negotiated' in key.lower():
-                basket_processor = NegotiatedBasketProcessor()
-            else:
-                basket_processor = GenericBasketProcessor()
-            plf_data_processor = PLF_DATA_PROCESSING(key=key, data=data, basket_processor=basket_processor)
-            directory_to_upload, df = plf_data_processor.process_raw_data()
-            upload_data(df, bucket_name, directory_to_upload, logPrefix)
-            return
+    # if (fileExtension == ".csv"):
+    #     # -------------------------------------- code for advisor SFTP fundBasketId -------------------------------------- #
+    #     if filename.lower() == "advisor":
+    #         basket_processor = None
+    #         if 'basket_type=negotiated' in key.lower():
+    #             basket_processor = NegotiatedBasketProcessor()
+    #         else:
+    #             basket_processor = GenericBasketProcessor()
+    #         plf_data_processor = PLF_DATA_PROCESSING(key=key, data=data, basket_processor=basket_processor)
+    #         directory_to_upload, df = plf_data_processor.process_raw_data()
+    #         upload_data(df, bucket_name, directory_to_upload, logPrefix)
+    return
 
 
 def lambda_handler(event, context):
