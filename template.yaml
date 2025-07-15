@@ -1,8 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  version : python3.9\n
-  
+  version : python3.11\n
+
   Application for datalake deployed using AWS SAM
 
 Resources:
@@ -25,4 +25,5 @@ Resources:
     Metadata:
       Dockerfile: Dockerfile
       DockerContext: ./datalakeConvertToParquet
-      DockerTag: python3.9-v1
+      DockerTag: python3.11-v1
+
