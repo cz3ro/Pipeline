@@ -1,0 +1,97 @@
+graph TD
+    A[Source Code Commit] --> B[AWS CodeBuild Triggered]
+    B --> C[Build Environment Setup]
+    C --> D[Load buildspec.yaml]
+    
+    D --> E[Pre-build Phase]
+    E --> F[Install SAM CLI]
+    F --> G[Install Dependencies]
+    G --> H[Authenticate with ECR]
+    
+    H --> I[Build Phase - sam build]
+    I --> J[Parse template.yaml]
+    J --> K[Identify Container Function]
+    K --> L{Docker Available?}
+    
+    L -->|NO - ISSUE 1| M[❌ Build Fails]
+    L -->|YES| N[Build Docker Image]
+    N --> O[Tag Image]
+    O --> P[Push to ECR]
+    
+    P --> Q[Post-build Phase - sam deploy]
+    Q --> R[Create CloudFormation Stack]
+    R --> S{IAM Permissions?}
+    
+    S -->|NO - ISSUE 2| T[❌ Deploy Fails]
+    S -->|YES| U[Create Change Set]
+    U --> V[Provision Resources]
+    
+    V --> W[Create Lambda Function]
+    V --> X[Create IAM Execution Role]
+    V --> Y[Create ECR Repository]
+    V --> Z[Configure Function]
+    
+    W --> AA[✅ Deployment Success]
+    X --> AA
+    Y --> AA
+    Z --> AA
+    
+    subgraph "CodeBuild Environment"
+        C
+        D
+        E
+        F
+        G
+        H
+        I
+        J
+        K
+        L
+        M
+        N
+        O
+        P
+        Q
+        R
+        S
+        T
+    end
+    
+    subgraph "Docker Issues"
+        M
+        L
+        BB[Need Privileged Mode]
+        CC[Docker Daemon Required]
+        BB --> L
+        CC --> L
+    end
+    
+    subgraph "IAM Issues"
+        T
+        S
+        DD[Missing CloudFormation Permissions]
+        EE[codebuild-samplepipeline-service-role]
+        DD --> S
+        EE --> S
+    end
+    
+    subgraph "AWS Resources Created"
+        W
+        X
+        Y
+        Z
+        FF[Lambda: datalakeConvertToParquet]
+        GG[ECR: Container Images]
+        HH[IAM: Lambda Execution Role]
+        II[S3: Deployment Artifacts]
+        FF --> AA
+        GG --> AA
+        HH --> AA
+        II --> AA
+    end
+    
+    style M fill:#ffcccc
+    style T fill:#ffcccc
+    style L fill:#ffffcc
+    style S fill:#ffffcc
+    style AA fill:#ccffcc

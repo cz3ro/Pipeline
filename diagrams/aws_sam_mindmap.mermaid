@@ -1,0 +1,162 @@
+mindmap
+  root((AWS SAM Deployment Ecosystem))
+    AWS CodeBuild
+      CI/CD Pipeline
+        Source Code Repository
+        Build Triggers
+        Automated Deployment
+      Build Environment
+        Container Runtime
+        Docker Daemon
+        Python 3.9 Runtime
+        Build Agents
+      Build Process
+        buildspec.yaml
+          Pre-build Phase
+          Build Phase
+          Post-build Phase
+        Build Artifacts
+        Environment Variables
+      Service Role
+        IAM Permissions
+        Cross-service Access
+        Resource Management
+    
+    AWS SAM
+      Serverless Framework
+        Infrastructure as Code
+        Template-driven Deployment
+        Resource Abstraction
+      SAM CLI
+        sam build
+        sam deploy
+        Local Development
+      template.yaml
+        Resource Definitions
+        Function Configuration
+        Event Sources
+        Policies
+      Build Process
+        Container Build
+        Dependency Resolution
+        Artifact Creation
+      Deploy Process
+        CloudFormation Integration
+        Stack Management
+        Resource Provisioning
+    
+    AWS Lambda
+      Function Types
+        Zip Package
+        Container Image
+        Layers
+      Runtime Environment
+        Python 3.9
+        Container Runtime
+        Execution Context
+      Configuration
+        Memory Size
+        Timeout
+        Architecture
+        Environment Variables
+      Permissions
+        Execution Role
+        Resource Policies
+        Cross-service Access
+      Integration
+        Event Sources
+        Destinations
+        VPC Configuration
+    
+    Docker
+      Container Technology
+        Image Building
+        Container Registry
+        Runtime Environment
+      Dockerfile
+        Base Image
+        Dependencies
+        Entry Point
+        Configuration
+      ECR Integration
+        Image Storage
+        Version Management
+        Access Control
+      Build Process
+        Image Creation
+        Layer Caching
+        Multi-stage Builds
+      CodeBuild Integration
+        Privileged Mode
+        Docker-in-Docker
+        Build Environment
+    
+    IAM
+      Identity Management
+        Users
+        Roles
+        Policies
+      Access Control
+        Permissions
+        Resource-based Policies
+        Service-linked Roles
+      CodeBuild Role
+        CloudFormation Permissions
+        Lambda Permissions
+        S3 Access
+        ECR Access
+      Lambda Execution Role
+        Runtime Permissions
+        Service Integration
+        Resource Access
+      Trust Relationships
+        Service Assumptions
+        Cross-account Access
+        Temporary Credentials
+    
+    CloudFormation
+      Infrastructure as Code
+        Template Processing
+        Resource Management
+        Stack Operations
+      SAM Transform
+        Serverless Resources
+        Implicit Resources
+        Policy Templates
+      Stack Management
+        Create/Update/Delete
+        Change Sets
+        Rollback
+      Resource Provisioning
+        Lambda Functions
+        IAM Roles
+        S3 Buckets
+        ECR Repositories
+    
+    Amazon ECR
+      Container Registry
+        Image Storage
+        Version Control
+        Access Management
+      Repository Management
+        Auto-creation
+        Lifecycle Policies
+        Vulnerability Scanning
+      Integration
+        Lambda Container Images
+        CodeBuild Access
+        Cross-region Replication
+    
+    EKS
+      Kubernetes Service
+        Container Orchestration
+        Cluster Management
+        Pod Scheduling
+      Relationship
+        Alternative to Lambda
+        Container Runtime
+        Microservices Architecture
+      Integration Points
+        ECR Images
+        IAM Roles
+        CodeBuild Deployment

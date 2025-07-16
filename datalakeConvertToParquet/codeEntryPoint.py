@@ -10,6 +10,8 @@ from decouple import config
 from datetime import datetime
 from io import BytesIO, StringIO
 
+from mypy_boto3_s3.client import Exceptions
+
 # ============================================= Global Configurations ============================================= #
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -23,19 +25,73 @@ S3_RESOURCE = SESSION.resource('s3')
 LAMBDA_CLIENT = boto3.client("lambda", region_name=config("REGION_NAME"))
 
 
-# ============================================= Business Logic ============================================= #
 def log_prefix(s3_directory):
-    list_of_directory = s3_directory.split("/")
-    STREAM = ""
-    if (list_of_directory[1].split("=")[0] == "client" and list_of_directory[4].split("=")[0] == "client_code"):
-        STREAM = "Conversion_To_Parquet" + " " + list_of_directory[2].split("=")[1] + " " + \
-                 list_of_directory[1].split("=")[
-                     1] + "_" + list_of_directory[4].split("=")[1] + " " + s3_directory.split("/")[3].split("=")[1]
-    else:
-        STREAM = "Conversion_To_Parquet" + " " + list_of_directory[2].split("=")[1] + " " + \
-                 list_of_directory[1].split("=")[
-                     1] + " " + s3_directory.split("/")[3].split("=")[1]
-    return STREAM
+    """
+    Convert Bronze layer path to Silver layer path with year/month/date folder structure
+
+    Input patterns:
+    - "bronze/201_Expense_2025-01-10_2025-01-10_22_01.json"
+    - "bronze/subfolder/201_Expense_2025-01-10_2025-01-10_22_01.json"
+
+    Output:
+    - "silver/year=2025/month=01/day=10/201_Expense_2025-01-10_2025-01-10_22_01.parquet"
+    """
+    try:
+        key = str(s3_directory).replace("#", "Generic")
+
+        # Split the key into parts
+        parts = key.split('/')
+
+        # Get the filename (last part)
+        filename = parts[-1]
+        file_base = filename.rsplit('.', 1)[0]  # Remove extension
+        parquet_filename = f"{file_base}.parquet"
+
+        # Extract date from filename pattern: ID_Type_YYYY-MM-DD_YYYY-MM-DD_HH_MM.extension
+        # We'll use the first date (start date) for folder structure
+        filename_parts = filename.split('_')
+
+        year, month, day = None, None, None
+
+        # Look for date pattern YYYY-MM-DD in filename parts
+        for part in filename_parts:
+            if len(part) == 10 and part.count('-') == 2:  # YYYY-MM-DD format
+                try:
+                    date_parts = part.split('-')
+                    if len(date_parts) == 3 and len(date_parts[0]) == 4:
+                        year = date_parts[0]
+                        month = date_parts[1]
+                        day = date_parts[2]
+                        break  # Use the first valid date found
+                except:
+                    continue
+
+        # If no date found in filename, try to extract from current date as fallback
+        if not all([year, month, day]):
+            from datetime import datetime
+            current_date = datetime.now()
+            year = str(current_date.year)
+            month = f"{current_date.month:02d}"
+            day = f"{current_date.day:02d}"
+            logger.warning(f"Could not extract date from filename {filename}, using current date: {year}-{month}-{day}")
+
+        # Construct the silver path with year/month/day structure
+        silver_path = f"silver/year={year}/month={month}/day={day}/{parquet_filename}"
+
+        return silver_path
+
+    except Exception as e:
+        logger.error(f"Error in getDirectoryToUpload: {str(e)}")
+        # Fallback to simple conversion
+        key = str(key).replace("#", "Generic")
+        parts = key.split('/')
+        if parts[0].lower() == 'bronze':
+            parts[0] = 'silver'
+        filename = parts[-1]
+        file_base = filename.rsplit('.', 1)[0]
+        parquet_filename = f"{file_base}.parquet"
+        parts[-1] = parquet_filename
+        return '/'.join(parts)
 
 
 def send_email(subject="Data Proccessing Error(Bronze-Silver)", body="", bucket_name="", key=""):
@@ -70,7 +126,8 @@ def custom_validation(bucket_name, directory, df):
                 logger.warning(message)
                 message = f"Hi,\n\nThe following are the error(s) occurred during the processing of data for the file {directory}.\n\n\n{message}\n\n\nThanks,\nSupport-Hexaview Team. \n\n----------------------This is system generated mail---------------------------"
                 send_email(body=message, bucket_name=bucket_name, key=directory)
-    except:
+    except Exception as e:
+        logger.error(f"Error in custom_validation: {str(e)}")
         pass
 
 
@@ -89,7 +146,7 @@ def upload_data(df, bucket_name, key, logPrefix):
         assert len(list(df.columns)) > 0, "Empty Dataframe, No Columns."
         assert len(df.index) > 0, "Empty Dataframe, No Rows."
 
-        file_name = (directory.split('filename=')[1]).split('/')[0]
+        file_name = directory.split("/")[-1]
         data = StringIO(df.to_csv(index=False, index_label=0))
         df = pd.read_csv(data, dtype=object, na_filter=False)
         df = df.loc[:, ~df.columns.str.contains('Unnamed:', na=False)]
@@ -125,90 +182,167 @@ def upload_data(df, bucket_name, key, logPrefix):
         logger.info("Sending Email")
 
 
-# Function to make S3 directory to upload the file (Updated Hierarchy PD-3434) #
+# # Function to make S3 directory to upload the file (Updated for Bronze to Silver conversion)
 def getDirectoryToUpload(key):
-    key = str(key).replace("#", "Generic")
-    filename = key.split('/')[-1]
-    prefixEnd = key.find("/", key.find("filename="))
-    prefix = key[:prefixEnd + 1]
-    # print(prefix)
-    midStart = key.find("year=")
-    midEnd = key.find("/", key.find("date="))
-    mid = key[midStart:midEnd + 1]
-    # print(mid)
-    sufix = key.replace(prefix, "").replace(mid, "").replace(filename, "")
-    # print(sufix)
-    parquetFilename = filename.replace(filename.split('.')[-1], "parquet")
-    # print(parquetFilename)
-    titaniumPrefix = prefix.replace("Bronze", "Silver")
-    s3Key = f"{titaniumPrefix}{mid}{sufix}{parquetFilename}"
-    # print(s3Key)
-    return s3Key
+    """
+    Convert Bronze layer path to Silver layer path with year/month/date folder structure based on today's date
+    Input: bronze/generic/filename.csv or bronze/subfolder/filename.json
+    Output: silver/year=2025/month=01/day=16/filename.parquet
+    """
+    try:
+        key = str(key).replace("#", "Generic")
+
+        # Get today's date
+        today = datetime.now()
+        year = str(today.year)
+        month = f"{today.month:02d}"
+        day = f"{today.day:02d}"
+
+        # Split the key into parts
+        parts = key.split('/')
+
+        # Get the filename (last part)
+        filename = parts[-1]
+        file_base = filename.rsplit('.', 1)[0]  # Remove extension
+        parquet_filename = f"{file_base}.parquet"
+
+        # Construct the silver path with today's date structure
+        silver_path = f"silver/year={year}/month={month}/day={day}/{parquet_filename}"
+
+        logger.info(f"Converting {key} to {silver_path} using today's date: {year}-{month}-{day}")
+
+        return silver_path
+
+    except Exception as e:
+        logger.error(f"Error in getDirectoryToUpload: {str(e)}")
+        # Fallback to simple conversion
+        key = str(key).replace("#", "Generic")
+        parts = key.split('/')
+        if parts[0].lower() == 'bronze':
+            parts[0] = 'silver'
+        filename = parts[-1]
+        file_base = filename.rsplit('.', 1)[0]
+        parquet_filename = f"{file_base}.parquet"
+        parts[-1] = parquet_filename
+        return '/'.join(parts)
+
+
+def read_file_to_dataframe(data, filename, file_extension):
+    """
+    Read different file formats into pandas DataFrame
+    """
+    try:
+        if file_extension.lower() == '.csv':
+            df = pd.read_csv(data, dtype=str, na_filter=False)
+        elif file_extension.lower() in ['.xlsx', '.xls']:
+            df = pd.read_excel(data, dtype=str, na_filter=False)
+        elif file_extension.lower() == '.json':
+            df = pd.read_json(data, dtype=str)
+        elif file_extension.lower() == '.parquet':
+            df = pd.read_parquet(data)
+            # Convert all columns to string for consistency
+            df = df.astype(str)
+        else:
+            raise ValueError(f"Unsupported file format: {file_extension}")
+
+        # Remove unnamed columns
+        df = df.loc[:, ~df.columns.str.contains('Unnamed:', na=False)]
+
+        return df
+    except Exception as e:
+        logger.error(f"Error reading file: {str(e)}")
+        raise
 
 
 # ============================================= Business logic ============================================= #
 def dynamic_logic(bucket_name, key, logPrefix):
-    data = BytesIO()
-    logger.info(f"file downloading....")
-    S3_CLIENT.download_fileobj(Bucket=bucket_name, Key=key, Fileobj=data)
-    logger.info(f"file successfully downloaded.")
-    data.seek(0)
-    source = (key.split("/")[2]).split("=")[-1]
-    filename = key.split("/")[-1]
-    fileExtension = filename.split(".")[-1]
-    fileExtension = "." + fileExtension
-    filename = (key.split("/")[3]).split("=")[-1]
-    # if (fileExtension == ".csv"):
-    #     # -------------------------------------- code for advisor SFTP fundBasketId -------------------------------------- #
-    #     if filename.lower() == "advisor":
-    #         basket_processor = None
-    #         if 'basket_type=negotiated' in key.lower():
-    #             basket_processor = NegotiatedBasketProcessor()
-    #         else:
-    #             basket_processor = GenericBasketProcessor()
-    #         plf_data_processor = PLF_DATA_PROCESSING(key=key, data=data, basket_processor=basket_processor)
-    #         directory_to_upload, df = plf_data_processor.process_raw_data()
-    #         upload_data(df, bucket_name, directory_to_upload, logPrefix)
-    return
+    try:
+        # Download file from S3
+        data = BytesIO()
+        logger.info(f"Downloading file from: {key}")
+        S3_CLIENT.download_fileobj(Bucket=bucket_name, Key=key, Fileobj=data)
+        logger.info(f"File successfully downloaded.")
+        data.seek(0)
+
+        # Extract file information
+        filename = key.split("/")[-1]
+        file_extension = "." + filename.split(".")[-1]
+
+        logger.info(f"Processing file: {filename} with extension: {file_extension}")
+
+        # Read file into DataFrame based on file type
+        df = read_file_to_dataframe(data, filename, file_extension)
+
+        logger.info(f"DataFrame created with shape: {df.shape}")
+        logger.info(f"Columns: {list(df.columns)}")
+
+        # Perform custom validation if needed
+        # custom_validation(bucket_name, key, df)
+
+        # Upload processed data to Silver layer
+        upload_data(df, bucket_name, key, logPrefix)
+
+    except Exception as e:
+        logger.error(f"Error in dynamic_logic: {str(e)}")
+        raise
 
 
 def lambda_handler(event, context):
-
     global INSTANCE_ID
     try:
         try:
             INSTANCE_ID = str(context.aws_request_id)
         except:
             INSTANCE_ID = 'No Instance ID'
+
         root = logging.getLogger()
         if root.handlers:
             for handler in root.handlers:
                 root.removeHandler(handler)
+
         obj = event['Records'][0]['s3']['object']
         bucket_name = str(event['Records'][0]['s3']['bucket']['name'])
         key = str(obj['key'])
         key = urllib.parse.unquote_plus(key)
+
+        # Validate that this is a Bronze layer file
+        if not key.lower().startswith('bronze/'):
+            logger.warning(f"File is not in Bronze layer, skipping: {key}")
+            return {
+                'statusCode': 200,
+                'body': json.dumps('File not in Bronze layer, skipped processing')
+            }
+
         # understand log prefix use case
         logPrefix = log_prefix(key)
         logging.basicConfig(format=f"[%(levelname)s]\t[ {logPrefix} ]\t %(message)s")
-        logger.info("Started..")
+        logger.info("Started Bronze to Silver conversion..")
+        logger.info(f"Processing file: {key}")
+
         dynamic_logic(bucket_name, key, logPrefix)
+
         return {
             'statusCode': 200,
-            'body': json.dumps('Data Uploaded!')
+            'body': json.dumps('Data successfully converted from Bronze to Silver!')
         }
     except Exception as e:
-        logger.error(f"error occured {e}")
-        logger.error("upload failed... terminating")
-        logger.info("Sending Email")
-        message = f"Hi,\n\nThe following are the error(s) occurred during the processing of data.\n\n\n {e} \n\n\nThanks,\nSupport-Hexaview Team. \n\n----------------------This is system generated mail---------------------------"
-        # send_email(body=message, bucket_name=bucket_name)
+        logger.error(f"Error occurred: {e}")
+        logger.error("Upload failed... terminating")
+    return {
+            'statusCode': 500,
+            'body': json.dumps(f'Error processing file: {str(e)}')
+        }
 
 
 if __name__ == "__main__":
+    # Test with sample Bronze layer files
     keys = [
-        "Bronze/client=TRUEMARK/source=ETFInvestOne_SFTP/filename=ETF_InvestOne_PLF/client_code=800/year=2025/month=5/date=29/ETF_3757edbaa4d5437e92130355b4950362_onDemand_800_QBUL_CXAI_SSB_PLF_20250529_140535_2025-05-29_2025-05-30_07:49.xlsx"
+        # "bronze/generic/year=2025/month=01/day=15/sample_data.csv",
+        # "bronze/generic/year=2025/month=01/day=15/sample_data.xlsx",
+        # "bronze/generic/year=2025/month=01/day=15/sample_data.json"
+        "bronze/201_Expense_2025-01-10_2025-01-10_22_01.json"
     ]
+
     for key in keys:
         event = {
             "Records": [
@@ -224,4 +358,8 @@ if __name__ == "__main__":
                 }
             ]
         }
-        lambda_handler(event, None)
+        try:
+            result = lambda_handler(event, None)
+            print(f"Processed {key}: {result}")
+        except Exception as e:
+            print(f"Error processing {key}: {e}")

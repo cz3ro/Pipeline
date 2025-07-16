@@ -1,0 +1,85 @@
+graph LR
+    subgraph "Development Layer"
+        A[Source Code] --> B[Dockerfile]
+        A --> C[requirements.txt]
+        A --> D[template.yaml]
+        A --> E[buildspec.yaml]
+    end
+    
+    subgraph "Build Layer"
+        F[AWS CodeBuild] --> G[Build Environment]
+        G --> H[Docker Engine]
+        G --> I[SAM CLI]
+        G --> J[Python Runtime]
+        
+        E --> F
+        F --> K[CodeBuild Service Role]
+        K --> L[IAM Permissions]
+    end
+    
+    subgraph "Container Layer"
+        B --> M[Docker Build]
+        M --> N[Container Image]
+        N --> O[Amazon ECR]
+        H --> M
+        
+        O --> P[ECR Repository]
+        P --> Q[Image Versions]
+    end
+    
+    subgraph "Serverless Layer"
+        D --> R[SAM Template]
+        R --> S[CloudFormation]
+        S --> T[Lambda Function]
+        T --> U[Lambda Execution Role]
+        
+        I --> V[sam build]
+        I --> W[sam deploy]
+        V --> M
+        W --> S
+    end
+    
+    subgraph "Infrastructure Layer"
+        S --> X[AWS Resources]
+        X --> T
+        X --> U
+        X --> O
+        X --> Y[S3 Bucket]
+        
+        L --> Z[CloudFormation Permissions]
+        L --> AA[Lambda Permissions]
+        L --> BB[ECR Permissions]
+        L --> CC[S3 Permissions]
+    end
+    
+    subgraph "Runtime Layer"
+        N --> T
+        U --> DD[Runtime Permissions]
+        DD --> EE[S3 Access]
+        DD --> FF[SNS Access]
+        DD --> GG[Lambda Invoke]
+    end
+    
+    subgraph "Alternative: EKS"
+        HH[EKS Cluster]
+        HH --> II[Kubernetes Pods]
+        II --> JJ[Container Runtime]
+        N --> JJ
+        KK[EKS Service Role] --> HH
+    end
+    
+    %% Issue Indicators
+    H -.->|ISSUE 1: Not Available| M
+    L -.->|ISSUE 2: Insufficient| Z
+    
+    %% Styling
+    style H fill:#ffcccc
+    style L fill:#ffcccc
+    style M fill:#ffffcc
+    style Z fill:#ffffcc
+    style T fill:#ccffcc
+    style N fill:#ccffcc
+    
+    %% Labels
+    M -.- LL[Requires Docker Daemon]
+    Z -.- MM[Requires cloudformation:CreateChangeSet]
