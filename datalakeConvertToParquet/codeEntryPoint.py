@@ -10,8 +10,6 @@ from decouple import config
 from datetime import datetime
 from io import BytesIO, StringIO
 
-from mypy_boto3_s3.client import Exceptions
-
 # ============================================= Global Configurations ============================================= #
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -328,10 +326,10 @@ def lambda_handler(event, context):
     except Exception as e:
         logger.error(f"Error occurred: {e}")
         logger.error("Upload failed... terminating")
-    return {
-            'statusCode': 500,
-            'body': json.dumps(f'Error processing file: {str(e)}')
-        }
+        return {
+                'statusCode': 500,
+                'body': json.dumps(f'Error processing file: {str(e)}')
+            }
 
 
 if __name__ == "__main__":
